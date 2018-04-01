@@ -1,6 +1,6 @@
-from Transition import Transition
 from RL_model import RL_model
 from copy import deepcopy
+import time
 import tensorflow as tf
 import numpy as np
 import random
@@ -24,18 +24,18 @@ class Agent():
 
         # Network parameters
         self.batch_size = 16
-        self.learning_rate = 0.01
+        self.learning_rate = 0.001
         self.input_layer_size = 4
-        self.hidden_layer1_size = 12
-        self.hidden_layer2_size = 24
+        self.hidden_layer1_size = 24
+        self.hidden_layer2_size = 48
         self.output_layer_size = 2
         
         # Q-Learning Paraeters
-        self.epsilon = 1.0
-        self.epsilon_decay = 0.995
-        self.min_epsilon = 0.01
-        self.discount = 1.00
-        self.step_delta = 50          # Steps to make before updating Q targets
+        self.epsilon = 1.0            # Exploration Rate
+        self.epsilon_decay = 0.99
+        self.min_epsilon = 0.0003     
+        self.discount = 1.00          # Discount for future rewards
+        self.step_delta = 100          # Steps to make before updating Q targets
         self.current_step_delta = 0   # Steps taken since last update
 
         # Network for decision making
@@ -66,7 +66,7 @@ class Agent():
         if(random.random() > self.epsilon):
             input_matrix = np.zeros((1,self.input_layer_size))
             input_matrix[0,:] = state
-            output = session.run(self.model.forward_3, feed_dict={self.model.X: input_matrix})
+            output = session.run(self.model.predict, feed_dict={self.model.X: input_matrix})
             return int(output[0,1] > output[0,0])
         
         #Act Randomly
@@ -83,8 +83,8 @@ class Agent():
 
     #Get optimal Actions to be performed on S' states according to the frozen model
     def optimalFutureActions(self, state):
-        #output = session.run(self.target_model.forward_3, feed_dict={self.target_model.X: state})
-        output = session.run(self.model.forward_3, feed_dict={self.model.X: state})
+        output = session.run(self.target_model.predict, feed_dict={self.target_model.X: state})
+        #output = session.run(self.model.predict, feed_dict={self.model.X: state})
         return output
 
     # Update Q targets after a number of steps
@@ -99,10 +99,6 @@ class Agent():
             self.current_step_delta=0
         self.current_step_delta += 1
 
-
-    def preprocess_state(self, state):
-        return np.reshape(state, [1, 4])
-
     # Update weights for the current model
     def updateWeights(self):
         
@@ -110,28 +106,49 @@ class Agent():
 
         #Only update weights when the required batch size has been reached
         if(len(self.experience) > self.batch_size):
-            x_batch = []
-            y_batch = []
-            minibatch = random.sample(self.experience, self.batch_size)
-            for state, action, reward, next_state, done in minibatch:
-                
-                y_target = session.run(self.model.forward_3, feed_dict={self.model.X: self.preprocess_state(state)})
-                if(done):
-                    y_target[0][action] = reward
-                else: 
-                    future_vals = self.optimalFutureActions(self.preprocess_state(next_state))
-                    y_target[0][action] = reward + self.discount * np.max(future_vals)
-                x_batch.append(state)
-                y_batch.append(y_target[0])
-            session.run(self.model.grad_descent, feed_dict={self.model.X: np.array(x_batch), self.model.Y: np.array(y_batch)})
+            x_batch = np.zeros((self.batch_size, self.input_layer_size))        # Initial states
+            next_states = np.zeros((self.batch_size, self.input_layer_size))    # State reached
+            actions = np.zeros(self.batch_size)                                 # Action taken in initial state
+            rewards = np.zeros(self.batch_size)                                 # Immediate rewards observed
+            done_arr = np.zeros(self.batch_size)                                # Values determining if the initial state is terminal
             
-            #session.run(self.model.grad_descent, feed_dict={self.model.X: states1, self.model.Y: target_forward})
-            #loss = session.run(self.model.loss, feed_dict={self.model.X: states1, self.model.Y: target_forward})
-            #if (loss>10E+12):
-            #    print("ERROR")
-            #    print(a)
+            # Get random samples from experience
+            minibatch = random.sample(self.experience, self.batch_size)
+
+            i = 0
+            for state, action, reward, next_state, done in minibatch:
+                x_batch[i] = state
+                actions[i] = action
+                rewards[i] = reward
+                next_states[i] = next_state
+                done_arr[i] = done
+                i += 1
+            
+            y_batch = session.run(self.model.predict, feed_dict={self.model.X: x_batch})          # Predict Q values for state with current model
+            future_vals = session.run(self.model.predict, feed_dict={self.model.X: next_states})   # Predict Q values for next_state with frozen model
+            
+            for i in range(self.batch_size):
+                # Current state is terminal, so we add only observed reward
+                if(done_arr[i]):
+                    y_batch[i,int(actions[i])] = rewards[i]
+                
+                # Calculate value of current state with estimated optimal value of future state
+                else:
+                    y_batch[i,int(actions[i])] = rewards[i] + self.discount*np.max(future_vals[i])
+
+            session.run(self.model.grad_descent, feed_dict={self.model.X: x_batch, self.model.Y: y_batch})
 
 if __name__ == "__main__":
+    
+    threshold = 195.0                 # Value to achieve consecutively to solve de problem
+    consecutive = 100                 # Number of consecutive times required to get above the threshold to solve problem
+    scores = np.zeros(consecutive)    # Store scores for last episodes
+    display_frequency = 20            # Amount of episodes before displaying information in the console
+    start_time = time.time()
+    
+    solved = False
+    i_episode = 0
+    
     agent = Agent()
     session = tf.Session()
     session.run(agent.init_op)
@@ -142,19 +159,38 @@ if __name__ == "__main__":
     session.run(agent.updateW2)
     session.run(agent.updateB2)
 
-    for i_episode in range(10000):
+    print("\nCartPole-v0")
+    print("------------------------------------------------")
+    print("Stats for last " , consecutive, " episodes")
+    print("------------------------------------------------")
+
+    while(not solved):
+        
         state = agent.env.reset()
-        for t in range(100):
-            
-            #agent.env.render()
+        time_step = 0
+        
+        while(True):    
+
             action = agent.epsilonGreedy(state)                                    # Pick action with epsilonGreedy policy
             next_state, reward, done, info = agent.env.step(action)
             agent.addExperience((state, action, reward, next_state, done))         # Store transition if it is not a losing state
             agent.updateWeights()                                                  # Update network weights
             state = next_state
-            
+            time_step += 1
+
             if done:
+                i_episode += 1
                 if(agent.epsilon > agent.min_epsilon):
                     agent.epsilon = agent.epsilon*agent.epsilon_decay
-                print("Episode " + str(i_episode) + " finished after {} timesteps".format(t+1))
+                scores[i_episode % consecutive] = time_step+1
+                
+                mean_score = np.mean(scores)
+                
+                
+                if((i_episode+1>=consecutive and (i_episode+1) % display_frequency == 0) or mean_score>=threshold):
+                    print("Episode ", i_episode+1 , "  | avg timesteps " , np.mean(scores))
+                    if(mean_score >= threshold):
+                        solved = True
                 break
+    print("Solved after " , i_episode+1 , " episodes")
+    print("Time taken " , "{0:.2f}".format(time.time() - start_time) , " s")
