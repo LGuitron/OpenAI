@@ -19,7 +19,7 @@ class Agent():
         
         # Store transitions for Deep Q Learning
         self.experience = []
-        self.experience_limit = 100000
+        self.experience_limit = 200000
         self.current_index = 0
 
         # Network parameters
@@ -78,13 +78,13 @@ class Agent():
         if(len(self.experience)<self.experience_limit):
             self.experience.append(transition)
         else:
+            #print("Filled Memory")
             self.experience[self.current_index] = transition
             current_index = (self.current_index+1)%self.experience_limit
 
     #Get optimal Actions to be performed on S' states according to the frozen model
     def optimalFutureActions(self, state):
         output = session.run(self.target_model.predict, feed_dict={self.target_model.X: state})
-        #output = session.run(self.model.predict, feed_dict={self.model.X: state})
         return output
 
     # Update Q targets after a number of steps

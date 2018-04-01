@@ -13,12 +13,12 @@ class RL_model(object):
         self.hidden_units_2 = hidden_units_2
         self.output_units = output_units
         
-        self.W0_init = tf.random_uniform([self.input_units, self.hidden_units_1])-0.5
-        self.B0_init = tf.random_uniform([1,self.hidden_units_1])-0.5
-        self.W1_init = tf.random_uniform([self.hidden_units_1, self.hidden_units_2])-0.5
-        self.B1_init = tf.random_uniform([1,self.hidden_units_2])-0.5
-        self.W2_init = tf.random_uniform([self.hidden_units_2, self.output_units])-0.5
-        self.B2_init = tf.random_uniform([1,self.output_units])-0.5
+        self.W0_init = tf.random_normal([self.input_units, self.hidden_units_1])-0.5
+        self.B0_init = tf.random_normal([1,self.hidden_units_1])-0.5
+        self.W1_init = tf.random_normal([self.hidden_units_1, self.hidden_units_2])-0.5
+        self.B1_init = tf.random_normal([1,self.hidden_units_2])-0.5
+        self.W2_init = tf.random_normal([self.hidden_units_2, self.output_units])-0.5
+        self.B2_init = tf.random_normal([1,self.output_units])-0.5
         
     def build_graph(self, learn_rate):
         
