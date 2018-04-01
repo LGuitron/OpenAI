@@ -6,7 +6,7 @@ from keras.optimizers import Adam
 
 
 class RL_model(object):
-
+    
     def __init__(self, input_units, hidden_units_1, hidden_units_2, output_units):
         self.input_units = input_units
         self.hidden_units_1 = hidden_units_1
@@ -19,7 +19,9 @@ class RL_model(object):
         self.B1_init = tf.random_normal([1,self.hidden_units_2])-0.5
         self.W2_init = tf.random_normal([self.hidden_units_2, self.output_units])-0.5
         self.B2_init = tf.random_normal([1,self.output_units])-0.5
-        
+
+    
+    
     def build_graph(self, learn_rate):
         
         # Data and expected rewards 
