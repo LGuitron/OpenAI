@@ -10,4 +10,4 @@ if __name__ == "__main__":
 
     load_agent = Agent("Breakout-ram-v0")
     #load_agent.train(max_episodes=1)
-    #load_agent.load('savedAgent')
+    load_agent.load('savedAgent')

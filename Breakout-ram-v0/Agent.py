@@ -205,9 +205,17 @@ class Agent():
         #self.train(max_episodes=1, save=False)
         
         # Restore Tensorflow session
-        filename = './' + directory + '/model.ckpt'
-        self.saver.restore(self.session, filename)
-        print("Model restored from: %s" % directory)
+        #filename = './' + directory + '/model.ckpt'
+        #self.saver.restore(self.session, filename)
+        #print("Model restored from: %s" % directory)
+        
+        filename = './' + directory + '/model.ckpt.meta'
+        with tf.Session() as sess:
+            self.saver = tf.train.import_meta_graph(filename)
+            dir_ = './' + directory
+            self.saver.restore(sess,tf.train.latest_checkpoint(dir_))
+        
+        
         
         # Restore agent's data
         #filename = './' + directory + '/agent_data.pkl'

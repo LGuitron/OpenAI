@@ -25,8 +25,8 @@ class RL_model(object):
     def build_graph(self, learn_rate, model_name):
         
         # Data and expected rewards 
-        self.X = tf.placeholder(tf.float32, shape=[None, self.input_units], name = str(model_name + '-X'))
-        self.Y = tf.placeholder(tf.float32, name = str(model_name + '-Y'))
+        self.X = tf.placeholder(tf.float32, shape=[None, self.input_units])
+        self.Y = tf.placeholder(tf.float32)
         #self.X = tf.placeholder(tf.float32, shape=[None, self.input_units, 1])
         
         
@@ -74,10 +74,10 @@ class RL_model(object):
         #self.fc_0 = tf.layers.dense(tf.layers.flatten(self.conv_1), 64 , activation = tf.nn.sigmoid)
         
         # Optimization
-        self.fc_0 = tf.layers.dense(self.X, 128 , activation = tf.nn.relu, name = str(model_name + '-fc0'))
-        self.fc_1 = tf.layers.dense(self.fc_0, 128 , activation = tf.nn.relu, name = str(model_name + '-fc1'))
-        self.fc_2 = tf.layers.dense(self.fc_1, 128 , activation = tf.nn.relu, name = str(model_name + '-fc2'))
-        self.predict = tf.layers.dense(self.fc_2, self.output_units, name = str(model_name + '-pred'))
+        self.fc_0 = tf.layers.dense(self.X, 128 , activation = tf.nn.relu)
+        self.fc_1 = tf.layers.dense(self.fc_0, 128 , activation = tf.nn.relu)
+        self.fc_2 = tf.layers.dense(self.fc_1, 128 , activation = tf.nn.relu)
+        self.predict = tf.layers.dense(self.fc_2, self.output_units)
         
         self.loss = tf.losses.mean_squared_error(self.Y, self.predict)
         self.optimizer = tf.train.AdamOptimizer(learning_rate=learn_rate)
