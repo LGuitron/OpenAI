@@ -1,6 +1,8 @@
 from RL_model import RL_model
 from Prep_Input import Prep_Input
 from copy import copy
+from pathlib import Path
+from subprocess import call
 import tensorflow as tf
 import numpy as np
 import random
@@ -9,7 +11,7 @@ import pickle
 
 class Agent():
 
-    def __init__(self, environment = None, hidden_units_1 = 0, hidden_units_2 = 0, preprocess = Prep_Input.identity, save_dir = "savedAgent"):
+    def __init__(self, environment = None, hidden_units_1 = 0, hidden_units_2 = 0, preprocess = Prep_Input.identity):
         
         # Gym environment
         self.env = gym.make(environment)
@@ -21,10 +23,9 @@ class Agent():
         self.state_memory = len(self.env.observation_space.high)
         
         # Store transitions for Deep Q Learning
-        self.experience_limit = 1000000
         # Each experience has a size of (2 x len(state) | 1 x reward | 1 x action | 1 x done)
+        self.experience_limit = 1000000
         self.experience = np.zeros((self.experience_limit, 2 * self.state_memory  + 3 ))
-        
         self.current_index = 0
 
         # Network topology
@@ -50,41 +51,28 @@ class Agent():
         self.discount = 0.99          # Discount for future rewards
         self.step_delta = 40000       # Steps to make before updating Q targets
         self.current_step_delta = 0   # Steps taken since last update
-        
         self.w_update_frequency = 32  # Number of steps to perform before updating network weights
         self.w_update_step = 0        # Number of steps since last weight update
 
         # Tensorflow session
         self.session = tf.Session()
         self.session.run(tf.global_variables_initializer())     # Weight initialization
-
         self.updateTargets()                                    # Set the target model parameters equal to the prediction model parameters
         
-        # Operation for saving tensorflow models (policy and target networks)
-        self.save_dir = save_dir
+        # Model saver
         self.saver = tf.train.Saver()
-    
-    
-    # Define how an Agent's instance will be pickled
-    def __getstate__(self):
-        state = self.__dict__.copy()
         
-        # Remove the unpicklable entries.
-        del state['saver']
-        del state['session']
-        del state['model']
-        del state['target_model']
-        del state['experience']
-        return state
-    
-    
+        # Saver with empty meta graph
+        #self.saver = tf.train.import_meta_graph(tf.train.export_meta_graph())
     
     '''
+    
     Training function
+    
     '''
     
     #def train(self, threshold, consecutive, display_frequency, scores, i_episode, render_game):
-    def train(self, max_episodes = 10000, display_frequency = 100, save = True):        
+    def train(self, max_episodes = 10000, display_frequency = 100):        
 
         avg_score = 0
         step_count = 0
@@ -111,10 +99,6 @@ class Agent():
             if((i+1) % display_frequency == 0):
                 print("Episode ", i+1 ," | Step " , step_count, "  | Rew " , avg_score/display_frequency, " | Epsilon "  , str(round(self.epsilon, 3)))
                 avg_score = 0
-        
-        # Save progress after training session
-        if(save):
-            self.save()
 
     #Select action with epsilon greedy policy
     def epsilonGreedy(self, state):
@@ -180,52 +164,77 @@ class Agent():
     
     '''
     # Save tensorflow model and class attributes
-    def save(self):
+    def save(self, directory):
         
         # Save tensorflow session
-        filename = './' + self.save_dir + '/model.ckpt'
+        filename = './' + directory + '/model.ckpt'
         self.saver = tf.train.Saver()
         save_path = self.saver.save(self.session, filename)
         
         # Save agent's data
-        filename = './' + self.save_dir + '/agent_data.pkl'
+        filename = './' + directory + '/agent_data.pkl'
         with open(filename, 'wb') as output:
             pickle.dump(self, output, pickle.HIGHEST_PROTOCOL)
             
         # Save agent's experience
-        filename = './' + self.save_dir + '/experience.npy'
+        filename = './' + directory + '/experience.npy'
         np.save(filename, self.experience)
-        
-        print("Agent saved in path: %s" % self.save_dir)
+        print("Agent saved in path: %s" % directory)
     
     # Load tensorflow model and class attributes
-    def load(self, directory="savedAgent"):
-        
-        # Run a single episode in order to restore the session properly
-        #self.train(max_episodes=1, save=False)
-        
-        # Restore Tensorflow session
-        #filename = './' + directory + '/model.ckpt'
-        #self.saver.restore(self.session, filename)
-        #print("Model restored from: %s" % directory)
-        
+    def load(self, directory):
+
+        # Restore Tensorflow Session
         filename = './' + directory + '/model.ckpt.meta'
-        with tf.Session() as sess:
+        with tf.Session(graph = tf.Graph()) as session:
             self.saver = tf.train.import_meta_graph(filename)
             dir_ = './' + directory
-            self.saver.restore(sess,tf.train.latest_checkpoint(dir_))
+            self.saver.restore(session,tf.train.latest_checkpoint(dir_))
+        print("Restored Models")
         
-        
+        # Restore experience array
+        filename = './' + directory + '/experience.npy'
+        self.experience = np.load(filename)
+        print("Restored Experience")
         
         # Restore agent's data
-        #filename = './' + directory + '/agent_data.pkl'
-        #with open(filename, 'rb') as f:
-        #    self = pickle.load(f)
-            #pickle.dump(self, output, pickle.HIGHEST_PROTOCOL)
+        filename = './' + directory + '/agent_data.pkl'
+        with open(filename, 'rb') as f:
+            self = pickle.load(f)
+        #self.epsilon = obj.epsilon
         
-        #print("Agent's data restored")
+    
+    '''
+    
+    Functions for storing agent's instance
+    
+    '''
+    def __getstate__(self):
+        state = self.__dict__.copy()
         
-        # Restore Agent's experience
-        #directory = './' + directory + '/experience.npy'
-        #self.experience = np.load(path_to_file)
+        # Remove the unpicklable entries.
+        del state['env']
+        del state['preprocess']
+        del state['saver']
+        del state['session']
+        del state['model']
+        del state['target_model']
+        del state['experience']
+        return state
+    
+    def __setstate__(self, state):
         
+        print("A: ")
+        print(state)
+        
+        # Restore instance attributes (i.e., filename and lineno).
+        self.__dict__.update(state)
+        
+        print(self.__dict__)
+        # Restore the previously opened file's state. To do so, we need to
+        # reopen it and read from it until the line count is restored.
+        #file = open(self.filename)
+        #for _ in range(self.lineno):
+        #    file.readline()
+        # Finally, save the file.
+        #self.file = file
